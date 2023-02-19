@@ -1,15 +1,18 @@
 # Importamos todas las librerías
-import cv2
+import picamera
 import numpy as np
 from scipy.fftpack import fft2, fftshift
 from matplotlib import pyplot as plt
 
-# Crea una instancia de la clase VideoCapture para acceder a la cámara
-cap = cv2.VideoCapture(0)
+# Inicializar la cámara
+camera = picamera.PiCamera()
 
-# Captura una imagen de la cámara y conviértela a escala de grises
-ret, img = cap.read()
-gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+# Capturar una imagen
+image = np.empty((camera.resolution[1], camera.resolution[0], 3), dtype=np.uint8)
+camera.capture(image, 'rgb')
+
+# Convertir la imagen a escala de grises
+gray = np.dot(image[...,:3], [0.2989, 0.5870, 0.1140])
 
 # Aplica la FFT a la imagen en escala de grises
 f = fft2(gray)
@@ -23,6 +26,3 @@ plt.subplot(122),plt.imshow(magnitude_spectrum, cmap = 'gray')
 plt.title('Magnitude Spectrum'), plt.xticks([]), plt.yticks([])
 plt.show()
 
-# Libera la cámara y cierra las ventanas de la imagen
-cap.release()
-cv2.destroyAllWindows()
