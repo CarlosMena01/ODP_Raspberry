@@ -24,5 +24,5 @@ plt.subplot(121),plt.imshow(gray, cmap = 'gray')
 plt.title('Input Image'), plt.xticks([]), plt.yticks([])
 plt.subplot(122),plt.imshow(magnitude_spectrum, cmap = 'gray')
 plt.title('Magnitude Spectrum'), plt.xticks([]), plt.yticks([])
-plt.show()
+plt.savefig("figura_base.png")
 
