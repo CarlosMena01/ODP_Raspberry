@@ -24,8 +24,6 @@ def apply_fourier_transform(frame):
     fshift = fftshift(f)
     magnitude_spectrum = 20*np.log(np.abs(fshift))
     
-    # Convertimos la imagen de vuelta a color
-    magnitude_spectrum = cv2.cvtColor(magnitude_spectrum, cv2.COLOR_GRAY2BGR)
     
     return magnitude_spectrum
 
