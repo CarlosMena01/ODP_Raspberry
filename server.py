@@ -2,7 +2,7 @@ from fastapi import FastAPI, Response
 from picamera import PiCamera
 from io import BytesIO
 import numpy as np
-import cv2
+from scipy.fftpack import fft2, fftshift
 
 app = FastAPI()
 
@@ -12,16 +12,13 @@ camera.resolution = (640, 480)
 
 # Función para aplicar la transformada de Fourier a una imagen
 def apply_fourier_transform(frame):
-    # Convertimos la imagen a escala de grises
-    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-    
-    # Aplicamos la transformada de Fourier
-    f = np.fft.fft2(gray)
-    fshift = np.fft.fftshift(f)
-    magnitude_spectrum = 20*np.log(np.abs(fshift))
-    
-    # Convertimos la imagen de vuelta a color
-    magnitude_spectrum = cv2.cvtColor(magnitude_spectrum, cv2.COLOR_GRAY2BGR)
+    # Convertir la imagen a escala de grises
+    gray = np.dot(image[...,:3], [0.2989, 0.5870, 0.1140])
+
+    # Aplica la FFT a la imagen en escala de grises
+    f = fft2(gray)
+    fshift = fftshift(f)
+    magnitude_spectrum = np.log(np.abs(fshift))
     
     return magnitude_spectrum
 
