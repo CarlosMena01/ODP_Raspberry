@@ -1,7 +1,11 @@
+# Librerias para stream 
 from fastapi import FastAPI, Response
+from time import sleep
+# Librerías de manejo de imagenes
 from picamera import PiCamera
 from io import BytesIO
 import numpy as np
+from scipy.fftpack import fft2, fftshift
 import cv2
 
 app = FastAPI()
@@ -16,8 +20,8 @@ def apply_fourier_transform(frame):
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     
     # Aplicamos la transformada de Fourier
-    f = np.fft.fft2(gray)
-    fshift = np.fft.fftshift(f)
+    f = fft2(gray)
+    fshift = fftshift(f)
     magnitude_spectrum = 20*np.log(np.abs(fshift))
     
     # Convertimos la imagen de vuelta a color
