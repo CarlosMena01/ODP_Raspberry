@@ -17,6 +17,7 @@ PAGE="""\
 <body>
 <h1>PiCamera MJPEG Streaming Demo</h1>
 <img src="stream.mjpg" width="640" height="480" />
+<p>FPS: {fps}</p>
 </body>
 </html>
 """
@@ -26,6 +27,8 @@ class StreamingOutput(object):
         self.frame = None
         self.buffer = io.BytesIO()
         self.condition = Condition()
+        self.start_time = time.monotonic()
+        self.frame_count = 0
 
     def write(self, buf):
         if buf.startswith(b'\xff\xd8'):
@@ -36,8 +39,13 @@ class StreamingOutput(object):
                 self.frame = self.buffer.getvalue()
                 self.condition.notify_all()
             self.buffer.seek(0)
-        return self.buffer.write(buf)
+            self.frame_count += 1
+            elapsed_time = time.monotonic() - self.start_time
+            fps = self.frame_count / elapsed_time
+            return fps
 
+        return self.buffer.write(buf)
+    
 class StreamingHandler(server.BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/':
