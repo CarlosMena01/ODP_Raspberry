@@ -1,107 +1,56 @@
-import io
-import logging
-from threading import Condition
 from fastapi import FastAPI, Response
+from picamera import PiCamera
+from io import BytesIO
+import numpy as np
+import cv2
 
 app = FastAPI()
 
-PAGE = """\
-<html>
-<head>
-<title>picamera MJPEG streaming demo</title>
-</head>
-<body>
-<h1>PiCamera MJPEG Streaming Demo</h1>
-<img src="stream.mjpg" width="640" height="480" />
-<p>FPS: <span id="fps"></span></p>
-<script>
-var fps_span = document.getElementById("fps");
-var fps = 0;
-setInterval(function() {
-    fps_span.innerHTML = fps.toFixed(1);
-    fps = 0;
-}, 1000);
-var img = new Image();
-img.onload = function() {
-    fps += 1;
-};
-img.src = "stream.mjpg";
-</script>
-</body>
-</html>
-"""
+# Configuramos la resolución de la cámara
+camera = PiCamera()
+camera.resolution = (640, 480)
 
-class StreamingOutput(object):
-    def __init__(self):
-        self.frame = None
-        self.buffer = io.BytesIO()
-        self.condition = Condition()
+# Función para aplicar la transformada de Fourier a una imagen
+def apply_fourier_transform(frame):
+    # Convertimos la imagen a escala de grises
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    
+    # Aplicamos la transformada de Fourier
+    f = np.fft.fft2(gray)
+    fshift = np.fft.fftshift(f)
+    magnitude_spectrum = 20*np.log(np.abs(fshift))
+    
+    # Convertimos la imagen de vuelta a color
+    magnitude_spectrum = cv2.cvtColor(magnitude_spectrum, cv2.COLOR_GRAY2BGR)
+    
+    return magnitude_spectrum
 
-    def write(self, buf):
-        if buf.startswith(b'\xff\xd8'):
-            # New frame, copy the existing buffer's content and notify all
-            # clients it's available
-            self.buffer.truncate()
-            with self.condition:
-                self.frame = self.buffer.getvalue()
-                self.condition.notify_all()
-            self.buffer.seek(0)
-        return self.buffer.write(buf)
+# Ruta para obtener el stream de video con la transformada de Fourier
+@app.get("/video_feed")
+async def video_feed(response: Response):
+    response.headers["Content-Type"] = "multipart/x-mixed-replace; boundary=frame"
 
-output = StreamingOutput()
+    # Configuramos la cámara para obtener un stream continuo de video
+    camera.framerate = 24
+    camera.start_preview()
+    sleep(2) # Esperamos a que la cámara se estabilice
 
-@app.get("/")
-async def root():
-    return Response(content=PAGE, media_type="text/html")
+    # Generamos el stream de video
+    while True:
+        # Capturamos una imagen de la cámara
+        stream = BytesIO()
+        camera.capture(stream, format='jpeg', use_video_port=True)
+        frame = cv2.imdecode(np.frombuffer(stream.getvalue(), dtype=np.uint8), -1)
 
-@app.get("/stream.mjpg")
-async def stream():
-    headers = {
-        'Age': '0',
-        'Cache-Control': 'no-cache, private',
-        'Pragma': 'no-cache',
-        'Content-Type': 'multipart/x-mixed-replace; boundary=FRAME',
-    }
-    return Response(content=stream_generator(), headers=headers)
+        # Aplicamos la transformada de Fourier a la imagen
+        frame = apply_fourier_transform(frame)
 
-def stream_generator():
-    try:
-        while True:
-            with output.condition:
-                output.condition.wait()
-                frame = output.frame
-            yield b'--FRAME\r\n'
-            yield b'Content-Type: image/jpeg\r\n'
-            yield b'Content-Length: ' + str(len(frame)).encode() + b'\r\n'
-            yield b'\r\n'
-            yield frame
-            yield b'\r\n'
-    except Exception as e:
-        logging.warning(
-            'Removed streaming client %s: %s',
-            self.client_address, str(e))
+        # Enviamos la imagen como parte del stream de video
+        response_body = b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + cv2.imencode('.jpg', frame)[1].tostring() + b'\r\n'
+        try:
+            await response.write(response_body)
+        except:
+            break
 
-if __name__ == '__main__':
-    import argparse
-    parser = argparse.ArgumentParser(description='FastAPI MJPEG streaming demo')
-    parser.add_argument('--host', default='0.0.0.0', help='Host address')
-    parser.add_argument('--port', default=8000, help='Port number')
-    args = parser.parse_args()
-
-    import signal
-    import sys
-
-    def signal_handler(signal, frame):
-        sys.exit(0)
-
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-
-    from picamera import PiCamera
-    camera = PiCamera(resolution='640x480', framerate=24)
-    camera.start_recording(output, format='mjpeg')
-    try:
-        import uvicorn
-        uvicorn.run(app, host=args.host, port=args.port)
-    finally:
-        camera.stop_recording()
+    # Paramos la cámara al terminar el stream de video
+    camera.stop_preview()
