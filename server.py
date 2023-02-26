@@ -4,6 +4,7 @@ from io import BytesIO
 import numpy as np
 from scipy.fftpack import fft2, fftshift
 from time import sleep
+from PIL import Image
 
 app = FastAPI()
 
@@ -14,7 +15,7 @@ camera.resolution = (640, 480)
 # Función para aplicar la transformada de Fourier a una imagen
 def apply_fourier_transform(frame):
     # Convertir la imagen a escala de grises
-    gray = np.dot(image[...,:3], [0.2989, 0.5870, 0.1140])
+    gray = np.dot(frame[...,:3], [0.2989, 0.5870, 0.1140])
 
     # Aplica la FFT a la imagen en escala de grises
     f = fft2(gray)
@@ -38,13 +39,23 @@ async def video_feed(response: Response):
         # Capturamos una imagen de la cámara
         stream = BytesIO()
         camera.capture(stream, format='jpeg', use_video_port=True)
-        frame = cv2.imdecode(np.frombuffer(stream.getvalue(), dtype=np.uint8), -1)
+        frame = Image.open(BytesIO(stream.getvalue()))
+        frame = np.array(frame)
 
         # Aplicamos la transformada de Fourier a la imagen
         frame = apply_fourier_transform(frame)
 
         # Enviamos la imagen como parte del stream de video
-        response_body = b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + cv2.imencode('.jpg', frame)[1].tostring() + b'\r\n'
+
+        # Convertir el frame a formato de imagen
+        img = Image.fromarray(frame)
+
+        # Codificar la imagen en formato JPEG
+        with BytesIO() as output:
+            img.save(output, format='JPEG')
+            encoded_img = output.getvalue()
+
+        response_body = b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + encoded_img[1].tostring() + b'\r\n'
         try:
             await response.write(response_body)
         except:
