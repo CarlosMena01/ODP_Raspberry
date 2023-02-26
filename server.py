@@ -1,15 +1,11 @@
-# Importamos todas las librerías
-import numpy as np
-from scipy.fftpack import fft2, fftshift
-
 import io
-import picamera
 import logging
-import socketserver
 from threading import Condition
-from http import server
+from fastapi import FastAPI, Response
 
-PAGE="""\
+app = FastAPI()
+
+PAGE = """\
 <html>
 <head>
 <title>picamera MJPEG streaming demo</title>
@@ -52,56 +48,60 @@ class StreamingOutput(object):
             self.buffer.seek(0)
         return self.buffer.write(buf)
 
-class StreamingHandler(server.BaseHTTPRequestHandler):
-    def do_GET(self):
-        if self.path == '/':
-            self.send_response(301)
-            self.send_header('Location', '/index.html')
-            self.end_headers()
-        elif self.path == '/index.html':
-            content = PAGE.encode('utf-8')
-            self.send_response(200)
-            self.send_header('Content-Type', 'text/html')
-            self.send_header('Content-Length', len(content))
-            self.end_headers()
-            self.wfile.write(content)
-        elif self.path == '/stream.mjpg':
-            self.send_response(200)
-            self.send_header('Age', 0)
-            self.send_header('Cache-Control', 'no-cache, private')
-            self.send_header('Pragma', 'no-cache')
-            self.send_header('Content-Type', 'multipart/x-mixed-replace; boundary=FRAME')
-            self.end_headers()
-            try:
-                while True:
-                    with output.condition:
-                        output.condition.wait()
-                        frame = output.frame
-                    self.wfile.write(b'--FRAME\r\n')
-                    self.send_header('Content-Type', 'image/jpeg')
-                    self.send_header('Content-Length', len(frame))
-                    self.end_headers()
-                    self.wfile.write(frame)
-                    self.wfile.write(b'\r\n')
-            except Exception as e:
-                logging.warning(
-                    'Removed streaming client %s: %s',
-                    self.client_address, str(e))
-        else:
-            self.send_error(404)
-            self.end_headers()
+output = StreamingOutput()
 
-class StreamingServer(socketserver.ThreadingMixIn, server.HTTPServer):
-    allow_reuse_address = True
-    daemon_threads = True
+@app.get("/")
+async def root():
+    return Response(content=PAGE, media_type="text/html")
 
-with picamera.PiCamera(resolution='640x480', framerate=24) as camera:
-    output = StreamingOutput()
+@app.get("/stream.mjpg")
+async def stream():
+    headers = {
+        'Age': '0',
+        'Cache-Control': 'no-cache, private',
+        'Pragma': 'no-cache',
+        'Content-Type': 'multipart/x-mixed-replace; boundary=FRAME',
+    }
+    return Response(content=stream_generator(), headers=headers)
+
+def stream_generator():
+    try:
+        while True:
+            with output.condition:
+                output.condition.wait()
+                frame = output.frame
+            yield b'--FRAME\r\n'
+            yield b'Content-Type: image/jpeg\r\n'
+            yield b'Content-Length: ' + str(len(frame)).encode() + b'\r\n'
+            yield b'\r\n'
+            yield frame
+            yield b'\r\n'
+    except Exception as e:
+        logging.warning(
+            'Removed streaming client %s: %s',
+            self.client_address, str(e))
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description='FastAPI MJPEG streaming demo')
+    parser.add_argument('--host', default='0.0.0.0', help='Host address')
+    parser.add_argument('--port', default=8000, help='Port number')
+    args = parser.parse_args()
+
+    import signal
+    import sys
+
+    def signal_handler(signal, frame):
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
+    from picamera import PiCamera
+    camera = PiCamera(resolution='640x480', framerate=24)
     camera.start_recording(output, format='mjpeg')
     try:
-        address = ('', 8000)
-        server = StreamingServer(address, StreamingHandler)
-        server.serve_forever()
+        import uvicorn
+        uvicorn.run(app, host=args.host, port=args.port)
     finally:
         camera.stop_recording()
-
