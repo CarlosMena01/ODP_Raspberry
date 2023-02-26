@@ -3,6 +3,7 @@ from picamera import PiCamera
 from io import BytesIO
 import numpy as np
 from scipy.fftpack import fft2, fftshift
+from time import sleep
 
 app = FastAPI()
 
