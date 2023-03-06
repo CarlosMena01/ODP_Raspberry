@@ -1,28 +1,30 @@
-# Importamos todas las librerías
-import picamera
-import numpy as np
-from scipy.fftpack import fft2, fftshift
-from matplotlib import pyplot as plt
+import cv2
 
-# Inicializar la cámara
-camera = picamera.PiCamera()
+# Abrir la cámara
+cap = cv2.VideoCapture(0)
 
-# Capturar una imagen
-image = np.empty((camera.resolution[1], camera.resolution[0], 3), dtype=np.uint8)
-camera.capture(image, 'rgb')
+# Verificar si la cámara se ha abierto correctamente
+if not cap.isOpened():
+    print("Error al abrir la cámara")
+    exit()
 
-# Convertir la imagen a escala de grises
-gray = np.dot(image[...,:3], [0.2989, 0.5870, 0.1140])
+# Ciclo infinito para mostrar la imagen de la cámara
+while True:
+    # Leer un fotograma de la cámara
+    ret, frame = cap.read()
 
-# Aplica la FFT a la imagen en escala de grises
-f = fft2(gray)
-fshift = fftshift(f)
-magnitude_spectrum = np.log(np.abs(fshift))
+    # Verificar si se ha leído correctamente el fotograma
+    if not ret:
+        print("Error al leer el fotograma")
+        break
 
-# Muestra la imagen original y su espectro de Fourier
-plt.subplot(121),plt.imshow(gray, cmap = 'gray')
-plt.title('Input Image'), plt.xticks([]), plt.yticks([])
-plt.subplot(122),plt.imshow(magnitude_spectrum, cmap = 'gray')
-plt.title('Magnitude Spectrum'), plt.xticks([]), plt.yticks([])
-plt.savefig("figura_base.png")
+    # Mostrar el fotograma en una ventana
+    cv2.imshow("Camara", frame)
 
+    # Esperar la tecla 'q' para salir
+    if cv2.waitKey(1) == ord('q'):
+        break
+
+# Liberar la cámara y cerrar la ventana
+cap.release()
+cv2.destroyAllWindows()

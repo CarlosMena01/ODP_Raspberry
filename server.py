@@ -1,15 +1,10 @@
-# Librerias para stream 
-from fastapi import FastAPI, Response
-from starlette.responses import StreamingResponse
-# Librerías de manejo de imagenes
+from flask import Flask
+from flask import render_template
+from flask import Response
+
 import numpy as np
 from scipy.fftpack import fft2, fftshift
 import cv2
-
-app = FastAPI()
-
-# Configuramos la cámara
-cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
 
 # Función para aplicar la transformada de Fourier a una imagen
 def apply_fourier_transform(frame):
@@ -22,26 +17,42 @@ def apply_fourier_transform(frame):
     magnitude_spectrum = 20*np.log(np.abs(fshift))
     
     
-    return frame
+    return magnitude_spectrum
 
 def generate():
-     while True:
-          ret, frame = cap.read()
-          if ret:
-                frame = apply_fourier_transform(frame)
-                (flag, encodedImage) = cv2.imencode(".jpg", frame)
-                if not flag:
-                   continue
-                yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' + bytearray(encodedImage) + b'\r\n')
-@app.get("/")
+    cap = cv2.VideoCapture(0)
+    # Verificar si la cámara se ha abierto correctamente
+    if not cap.isOpened():
+        print("Error al abrir la cámara")
+        exit()
+    while True:
+        ret, frame = cap.read()
+
+        while not ret:
+            print("La cámará no se pudo abrir, re intentado ...")
+            cap = cv2.VideoCapture(0)
+            ret, frame = cap.read()
+
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        (flag, encodedImage) = cv2.imencode(".jpg", gray)
+        if not flag:
+            continue
+        yield(b'--frame\r\n' b'Content-Type: image/jpeg\r\n\r\n' +
+            bytearray(encodedImage) + b'\r\n')
+
+app = Flask(__name__)
+
+
+@app.route("/")
 def index():
-    with open("./templates/index.html") as fh:
-        data = fh.read()
-    return Response(content=data, media_type="text/html")
+     return render_template("index.html")
 
-@app.get("/video_feed")
+@app.route("/video_feed")
 def video_feed():
-    return StreamingResponse(generate(), media_type="multipart/x-mixed-replace;boundary=frame")
+    return Response(generate(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
+if __name__ == "__main__":
+    app.run(debug=False)
 
 cap.release()
