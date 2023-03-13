@@ -4,21 +4,66 @@
     <meta charset="UTF-8" />
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Videostreaming</title>
-    <style>
-      .container {
-        margin: 0;
-        padding: 0;
-        width: 100%;
-        height: 100vh;
-        background-color: #e2d8f8;
-        color: black;
-        text-align: center;
-      }
-    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static',filename='styles/reset.css') }}"
+    />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static',filename='styles/index.css') }}"
+    />
+    <title>DLHM</title>
   </head>
   <body class="container">
-    <h1>Video en directo</h1>
-    <img src="{{ url_for('video_feed') }}" />
+    <header>
+      <h1 class="title">Reconstrucción de DLHM</h1>
+    </header>
+    <main>
+      <div class="left-container">
+        <div class="image">
+          <h3>Espectro</h3>
+          <img src="{{ url_for('video_feed', type='config') }}" />
+        </div>
+        <div class="inputs">
+          <div class="coordenates">
+            <div class="input-container">
+              <label for="CX">Coordenada X</label>
+              <input type="number" name="CoordenadaX" id="CX" />
+            </div>
+            <div class="input-container">
+              <label for="CY">Coordenada Y</label>
+              <input type="number" name="CoordenadaY" id="CY" />
+            </div>
+          </div>
+          <div class="radio">
+            <div class="input-container">
+              <label for="Radio">Radio</label>
+              <input type="number" name="Radio" id="Radio" />
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="right-container">
+        <div class="reference">
+          <button class="btn cap">
+            Capturar <br />
+            referencia
+          </button>
+        </div>
+        <div class="reconstruction">
+          <button onclick="watchCircle()" class="btn cir">Ver círculo</button>
+          <button onclick="openReconstruction()" class="btn holo">
+            Reconstrir Holograma
+          </button>
+        </div>
+      </div>
+    </main>
   </body>
+  <script src="{{ url_for('static',filename='scripts/mainPage.js') }}"></script>
 </html>
